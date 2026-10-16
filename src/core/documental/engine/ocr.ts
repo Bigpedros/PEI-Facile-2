@@ -1,0 +1,76 @@
+import {createWorker} from 'tesseract.js';
+const OEM={LSTM_ONLY:1};
+const PSM={AUTO:3,SINGLE_BLOCK:6,SPARSE_TEXT:11};
+type Worker = Awaited<ReturnType<typeof createWorker>>;
+import type {EngineOptions,Token} from './types';
+import {createIndependentRecognizer,readIndependent} from './dualReading';
+import type {RecognizerB} from '../vendor/motore-ocr-ai/src/core/ocr/recognizerB';
+import type {RetryPlanRegion} from './ocrAlignment';
+export class LocalRecognizer {
+ private worker:Worker|undefined;
+ private terminated=false;
+ private currentPage=1;
+ private secondary:RecognizerB|undefined;
+ constructor(private options:EngineOptions){}
+ private async initialize(page:number):Promise<void> {
+ this.options.signal?.throwIfAborted();
+ this.currentPage=page;
+ if(!this.worker){
+ const base=new URL(import.meta.env.BASE_URL,location.href).href;
+ const creation=createWorker(this.options.language,OEM.LSTM_ONLY,{workerPath:base+'vendor/worker.min.js',corePath:base+'vendor/core',langPath:base+'vendor/lang',logger:m=>{if(!this.terminated&&!this.options.signal?.aborted)this.options.onProgress?.(`Pagina ${this.currentPage} · ${translate(m.status)}`,m.progress);}});
+ void creation.then(worker=>{if(this.terminated||this.options.signal?.aborted)void worker.terminate();},()=>{});
+ const pending=await abortable(creation,this.options.signal);
+ if(this.terminated||this.options.signal?.aborted){await pending.terminate();throw new DOMException('Interrotto','AbortError');}
+ this.worker=pending;
+ await this.worker.setParameters({tessedit_pageseg_mode:this.options.segmentation==='block'?PSM.SINGLE_BLOCK:this.options.segmentation==='sparse'?PSM.SPARSE_TEXT:PSM.AUTO,preserve_interword_spaces:'1',user_defined_dpi:String(this.options.dpi)});
+ }
+ }
+ async recognize(canvas:HTMLCanvasElement,page:number):Promise<{tokens:Token[];text:string}> {
+ await this.initialize(page);
+ const {data}=await abortable(this.worker!.recognize(canvas,{}, {text:true,blocks:true}) as Promise<any>,this.options.signal);
+ const tokens:Token[]=[];let lineIndex=0;
+ for(const block of data.blocks||[])for(const paragraph of block.paragraphs)for(const line of paragraph.lines){
+ const lineId=`p${page}-l${lineIndex++}`;
+ for(const word of line.words){const b=word.bbox;if(!word.text.trim())continue;tokens.push({id:`p${page}-t${tokens.length}`,text:word.text,confidence:word.confidence,source:'ocr',lineId,box:{x:b.x0,y:b.y0,width:b.x1-b.x0,height:b.y1-b.y0}});}
+ }
+ return {tokens,text:data.text};
+ }
+ async recognizeRegions(canvas:HTMLCanvasElement,page:number,regions:RetryPlanRegion[]):Promise<Token[]> {
+  this.options.signal?.throwIfAborted();await this.initialize(page);
+  const worker=this.worker!,tokens:Token[]=[];
+  try{
+   await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT});
+   for(const [index,r] of regions.entries()){
+    this.options.signal?.throwIfAborted();const margin=8,x=Math.max(0,Math.floor(r.box.x-margin)),y=Math.max(0,Math.floor(r.box.y-margin)),right=Math.min(canvas.width,Math.ceil(r.box.x+r.box.width+margin)),bottom=Math.min(canvas.height,Math.ceil(r.box.y+r.box.height+margin));
+    if(right<=x||bottom<=y)continue;
+    const crop=document.createElement('canvas');crop.width=right-x;crop.height=bottom-y;crop.getContext('2d')!.drawImage(canvas,x,y,crop.width,crop.height,0,0,crop.width,crop.height);
+    try{const {data}=await abortable(worker.recognize(crop,{}, {text:true,blocks:true}) as Promise<any>,this.options.signal);let lineIndex=0;
+     for(const block of data.blocks??[])for(const paragraph of block.paragraphs??[])for(const line of paragraph.lines??[]){const lineId=`p${page}-ar${index}-l${lineIndex++}`;
+      for(const word of line.words??[]){const b=word.bbox;if(!word.text.trim())continue;tokens.push({id:`p${page}-ar${index}-t${tokens.length}`,text:word.text,confidence:word.confidence,source:'ocr',lineId,box:{x:b.x0+x,y:b.y0+y,width:b.x1-b.x0,height:b.y1-b.y0}});}
+     }
+    }finally{crop.width=crop.height=1;}
+   }
+  }finally{if(!this.terminated&&!this.options.signal?.aborted)await worker.setParameters({tessedit_pageseg_mode:this.options.segmentation==='block'?PSM.SINGLE_BLOCK:this.options.segmentation==='sparse'?PSM.SPARSE_TEXT:PSM.AUTO});}
+  return tokens;
+ }
+ async recognizeIndependent(canvas:HTMLCanvasElement,page:number,primary:{tokens:Token[];text:string}){
+  this.options.signal?.throwIfAborted();
+  this.secondary??=this.options.recognizerB??createIndependentRecognizer();
+  const secondary=this.secondary,stop=()=>{void secondary.dispose?.();};
+  this.options.signal?.addEventListener('abort',stop,{once:true});
+  try{return await readIndependent(canvas,page,primary,secondary,this.options.signal,this.options.profile==='pei',regions=>this.recognizeRegions(canvas,page,regions));}
+  finally{this.options.signal?.removeEventListener('abort',stop);}
+ }
+ async terminate(){this.terminated=true;const worker=this.worker;this.worker=undefined;await this.secondary?.dispose?.();this.secondary=undefined;if(worker)await worker.terminate();}
+}
+function translate(s:string){return ({'loading tesseract core':'caricamento OCR','initializing tesseract':'inizializzazione OCR','loading language traineddata':'caricamento lingua','initializing api':'preparazione lettura','recognizing text':'lettura testo'} as Record<string,string>)[s]||s;}
+
+function abortable<T>(promise:Promise<T>,signal?:AbortSignal):Promise<T> {
+ if(!signal)return promise;
+ if(signal.aborted)return Promise.reject(new DOMException('Interrotto','AbortError'));
+ return new Promise((resolve,reject)=>{
+ const stop=()=>reject(new DOMException('Interrotto','AbortError'));
+ signal.addEventListener('abort',stop,{once:true});
+ promise.then(value=>{signal.removeEventListener('abort',stop);resolve(value);},error=>{signal.removeEventListener('abort',stop);reject(error);});
+ });
+}

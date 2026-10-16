@@ -1,0 +1,29 @@
+import {describe,it,expect} from 'vitest';
+import {classifyDetectionCandidates,isProtectedDetectionField} from '../assistedFieldDetectionService';
+import type {FieldGeometry} from '../../data/geometry/types';
+const field=(id:string,x:number,status='PROPOSED')=>({fieldId:id,pageNumber:1,xPt:x,yPt:100,widthPt:80,heightPt:20,label:'Nome',calibrationStatus:status,detectionSource:'DOCUMENTAL_020'} as FieldGeometry);
+describe('Diagnostica del rilevamento e ricostruzione',()=>{
+ it('conteggia le proposte automatiche già visibili senza scartarle come campi confermati',()=>{
+  const existing=[field('auto',10),field('confirmed',110,'CONFIRMED'),field('rejected',210,'REJECTED')];
+  const candidates=[field('a',10),field('b',110),field('c',210),field('new',310)];
+  const result=classifyDetectionCandidates(candidates,existing,1);
+  expect(result.proposals.map(f=>f.fieldId)).toEqual(['a','new']);
+  expect(result.matchedAutomatic).toHaveLength(1);expect(result.newProposals).toHaveLength(1);expect(result.protectedDuplicates).toHaveLength(2);
+  expect(isProtectedDetectionField(existing[0])).toBe(false);expect(isProtectedDetectionField(existing[1])).toBe(true);expect(isProtectedDetectionField(existing[2])).toBe(true);
+ });
+ it('il recupero ampio non copre piccoli campi protetti',()=>{
+  const candidate={...field('recovery',10),yPt:50,widthPt:500,heightPt:300,detectionSource:'PEI_STRUCTURAL_RECOVERY'};
+  for(const protection of [{calibrationStatus:'CONFIRMED'},{calibrationStatus:'REJECTED'},{detectionSource:'MANUAL_ENTRY'},{derivationMethod:'ACROFORM'}]){
+   const existing={...field('protected',100),widthPt:10,heightPt:10,...protection} as FieldGeometry,before=JSON.stringify(existing),out=classifyDetectionCandidates([candidate],[existing],1);
+   expect(out.proposals).toHaveLength(0);expect(out.protectedDuplicates).toHaveLength(1);expect(JSON.stringify(existing)).toBe(before);
+  }
+  expect(classifyDetectionCandidates([candidate],[{...field('other',100),pageNumber:2,calibrationStatus:'CONFIRMED'}],1).proposals).toHaveLength(1);
+ });
+ it('anche una proposta contestuale non copre piccoli campi protetti',()=>{
+  const candidate={...field('associated',10),yPt:50,widthPt:500,heightPt:300,detectionSource:'PEI_CONTEXT_ASSOCIATION'};
+  for(const patch of [{calibrationStatus:'CONFIRMED'},{calibrationStatus:'REJECTED'},{detectionSource:'MANUAL_ENTRY'},{derivationMethod:'ACROFORM'}]){
+   const existing={...field('protected',100),widthPt:10,heightPt:10,...patch} as FieldGeometry;
+   expect(classifyDetectionCandidates([candidate],[existing],1).proposals).toHaveLength(0);
+  }
+ });
+});
