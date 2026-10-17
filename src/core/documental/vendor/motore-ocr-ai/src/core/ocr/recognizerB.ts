@@ -2,6 +2,7 @@ import type {Box,OcrPage,OcrProviderVariantEvidence,OcrToken} from '../../contra
 import type {OcrPageInput,OcrProvider,OcrRetryRegion} from './provider.js';
 
 export interface RecognizerBResult{
+  runtimeInfo?:RecognizerBRuntimeInfo;
   id:string;
   tokens:OcrToken[];
   text:string;
@@ -11,6 +12,7 @@ export interface RecognizerBResult{
 }
 
 export interface RecognizerB{
+  readonly lastRegionStats?:RecognizerBRegionStats;
   readonly id:string;
   recognize(input:OcrPageInput,signal?:AbortSignal):Promise<RecognizerBResult>;
   recognizeRegions?(input:OcrPageInput,regions:OcrRetryRegion[],signal?:AbortSignal):Promise<OcrToken[]>;
@@ -25,7 +27,11 @@ export interface OcrsWasmRecognizerBOptions{
 }
 
 interface OcrsWordJson{text:string;rect:[number,number,number,number]}
-export interface OcrsWasmInstance{recognize_rgba:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>;free?:()=>void}
+export interface RecognizerBRuntimeInfo {
+  variant:'simd'|'scalar';moduleUrl:string;initializationMs:number;fallbackReason?:string;supportsLineRecognition?:boolean;
+}
+export interface RecognizerBRegionStats{directLine:number;detector:number;fallback:number}
+export interface OcrsWasmInstance{readonly runtimeInfo?:RecognizerBRuntimeInfo;recognize_rgba:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>;recognize_line_rgba?:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>;free?:()=>void}
 interface OcrsWasmConstructor{new(detection:Uint8Array,recognition:Uint8Array):OcrsWasmInstance}
 interface OcrsWasmModule{
   default?:(input?:unknown)=>Promise<unknown>|unknown;
@@ -35,6 +41,7 @@ interface OcrsWasmModule{
 const dynamicImport=(url:string)=>new Function('u','return import(u)')(url) as Promise<OcrsWasmModule>;
 
 export class OcrsWasmRecognizerB implements RecognizerB{
+  lastRegionStats:RecognizerBRegionStats={directLine:0,detector:0,fallback:0};
   readonly id='ocrs-rten-wasm';
   private runtime?:Promise<OcrsWasmInstance>;
   private readonly options:Required<OcrsWasmRecognizerBOptions>;
@@ -48,13 +55,14 @@ export class OcrsWasmRecognizerB implements RecognizerB{
   }
 
   async recognize(input:OcrPageInput,signal?:AbortSignal):Promise<RecognizerBResult>{
+    this.lastRegionStats={directLine:0,detector:0,fallback:0};
     signal?.throwIfAborted();
     if(!isCanvas(input.image))return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:['RECOGNIZER_B_IMAGE_UNAVAILABLE']};
     try{
       const runtime=await this.getRuntime(signal);
       const words=await recognizeCanvas(runtime,input.image,signal);
       const tokens=wordsToTokens(words,input.pageNumber,0,0,'b');
-      return{id:this.id,tokens,text:rebuild(tokens),score:scoreTokens(tokens),confidence:tokens.length?averageConfidence(tokens):null,warnings:[]};
+      return{id:this.id,tokens,text:rebuild(tokens),score:scoreTokens(tokens),confidence:tokens.length?averageConfidence(tokens):null,warnings:[],runtimeInfo:runtime.runtimeInfo};
     }catch(error){
       signal?.throwIfAborted();
       return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:[`RECOGNIZER_B_UNAVAILABLE:${message(error)}`]};
@@ -62,6 +70,7 @@ export class OcrsWasmRecognizerB implements RecognizerB{
   }
 
   async recognizeRegions(input:OcrPageInput,regions:OcrRetryRegion[],signal?:AbortSignal):Promise<OcrToken[]>{
+    this.lastRegionStats={directLine:0,detector:0,fallback:0};
     signal?.throwIfAborted();
     if(!isCanvas(input.image)||!regions.length)return[];
     let runtime:OcrsWasmInstance;
@@ -71,7 +80,21 @@ export class OcrsWasmRecognizerB implements RecognizerB{
       signal?.throwIfAborted();
       const crop=cropCanvas(input.image,region.box,.08);
       if(!crop)continue;
-      const words=await recognizeCanvas(runtime,crop.canvas,signal).catch(()=>{signal?.throwIfAborted();return[];});
+      // Small already-positioned disputes can be read as a line. Oversized or
+      // missing text and arbitrary regions retain the complete detector path.
+      const direct=!!runtime.recognize_line_rgba&&runtime.runtimeInfo?.supportsLineRecognition!==false&&
+        region.kind==='text'&&['critical-disagreement','segmentation-mismatch'].includes(region.reason)&&
+        crop.canvas.height>=8&&crop.canvas.height<=80&&crop.canvas.width<=crop.canvas.height*16;
+      let words:OcrsWordJson[]=[];
+      if(direct){
+        this.lastRegionStats.directLine++;
+        words=await recognizeCanvas(runtime,crop.canvas,signal,true).catch(()=>{signal?.throwIfAborted();return[];});
+      }
+      if(!direct||!words.length){
+        if(direct)this.lastRegionStats.fallback++;
+        this.lastRegionStats.detector++;
+        words=await recognizeCanvas(runtime,crop.canvas,signal).catch(()=>{signal?.throwIfAborted();return[];});
+      }
       crop.canvas.width=crop.canvas.height=1;
       const mapped=wordsToTokens(words,input.pageNumber,crop.x,crop.y,`br${index}`);
       for(const token of mapped){
@@ -168,12 +191,13 @@ async function fetchBytes(url:string,signal?:AbortSignal):Promise<Uint8Array>{
   if(!response.ok)throw new Error(`${response.status} ${response.statusText} per ${url}`);
   return new Uint8Array(await response.arrayBuffer());
 }
-async function recognizeCanvas(runtime:OcrsWasmInstance,canvas:HTMLCanvasElement,signal?:AbortSignal):Promise<OcrsWordJson[]>{
+async function recognizeCanvas(runtime:OcrsWasmInstance,canvas:HTMLCanvasElement,signal?:AbortSignal,singleLine=false):Promise<OcrsWordJson[]>{
   signal?.throwIfAborted();
   const context=canvas.getContext('2d',{willReadFrequently:true});
   if(!context)return[];
   const image=context.getImageData(0,0,canvas.width,canvas.height);
-  const raw=await runtime.recognize_rgba(new Uint8Array(image.data.buffer.slice(0)),canvas.width,canvas.height);
+  const read=singleLine?runtime.recognize_line_rgba!.bind(runtime):runtime.recognize_rgba.bind(runtime);
+  const raw=await read(new Uint8Array(image.data.buffer.slice(0)),canvas.width,canvas.height);
   signal?.throwIfAborted();
   const parsed=JSON.parse(raw) as OcrsWordJson[];
   return Array.isArray(parsed)?parsed.filter(validWord):[];

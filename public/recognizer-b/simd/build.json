@@ -1,0 +1,18 @@
+{
+  "variant": "simd",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "wasmBindgen": "wasm-bindgen 0.2.129",
+  "rustflags": "-C target-feature=+simd128",
+  "cargoLockSha256": "c2892b4bc1c6e0849f81de8c451cfe5c1867dab98de2104c00a40ba675dcc33e",
+  "sourceSha256": "0c1155cfa06078ea157280ddf6272849726c973dc1e0ad35211d9e251d8df1b1",
+  "files": {
+    "ocrs_wasm.js": {
+      "bytes": 8691,
+      "sha256": "eceb521450ea9815f8e14c383bb83c9fe411d3fbbf104735f89d941c85741075"
+    },
+    "ocrs_wasm_bg.wasm": {
+      "bytes": 4882318,
+      "sha256": "023dded05d0447193979fe12b91d1b992f6b956b903d9f5d025ea4106b009f94"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams, TextItem};
 use rten::Model;
+use rten_imageproc::{Rect, RotatedRect};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -32,6 +33,18 @@ impl OcrsRecognizer {
     }
 
     pub fn recognize_rgba(&self, pixels: &[u8], width: u32, height: u32) -> Result<String, JsValue> {
+        self.recognize_pixels(pixels, width, height, false)
+    }
+
+    /// Small retry regions already positioned as a single line by the caller.
+    /// This is fresh optical recognition, not a replay of full-page tokens.
+    pub fn recognize_line_rgba(&self, pixels: &[u8], width: u32, height: u32) -> Result<String, JsValue> {
+        self.recognize_pixels(pixels, width, height, true)
+    }
+}
+
+impl OcrsRecognizer {
+    fn recognize_pixels(&self, pixels: &[u8], width: u32, height: u32, single_line: bool) -> Result<String, JsValue> {
         if width == 0 || height == 0 { return Ok("[]".into()); }
         let expected = width as usize * height as usize * 4;
         if pixels.len() != expected { return Err(JsValue::from_str("invalid RGBA buffer length")); }
@@ -41,8 +54,12 @@ impl OcrsRecognizer {
 
         let source = ImageSource::from_bytes(&rgb, (width, height)).map_err(js_err)?;
         let input = self.engine.prepare_input(source).map_err(js_err)?;
-        let found = self.engine.detect_words(&input).map_err(js_err)?;
-        let lines = self.engine.find_text_lines(&input, &found);
+        let lines = if single_line {
+            vec![vec![RotatedRect::from_rect(Rect::from_hw(height as f32, width as f32))]]
+        } else {
+            let found = self.engine.detect_words(&input).map_err(js_err)?;
+            self.engine.find_text_lines(&input, &found)
+        };
         let read = self.engine.recognize_text(&input, &lines).map_err(js_err)?;
 
         let mut words = Vec::new();

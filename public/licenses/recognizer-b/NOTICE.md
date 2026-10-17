@@ -18,3 +18,7 @@ Modelli `text-detection.rten` e `text-recognition.rten`:
 
 Il bridge Rust/WASM è ripreso da Bigpedros/MOTORE-OCR-AI.
 Provenienza e adattamenti: docs/PEI_PHASE2_DUAL_READER.md.
+
+La variante SIMD e il metodo di rilettura di righe localizzate usano gli stessi
+modelli non modificati e le medesime licenze. Build riproducibile e modifiche:
+docs/PEI_PERFORMANCE_PHASE2.md e public/recognizer-b/simd/build.json.

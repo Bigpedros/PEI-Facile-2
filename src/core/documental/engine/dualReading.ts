@@ -1,4 +1,4 @@
-import {OcrsWasmRecognizerB,type RecognizerB} from '../vendor/motore-ocr-ai/src/core/ocr/recognizerB';
+import {OcrsWasmRecognizerB,type RecognizerB,type RecognizerBRuntimeInfo,type RecognizerBRegionStats} from '../vendor/motore-ocr-ai/src/core/ocr/recognizerB';
 import {createRawOcrSnapshot,createEvidenceSet,addEvidenceTokens,type OcrDecision} from '../vendor/motore-ocr-ai/src/core/pipeline/checkpoints';
 import {stabilizeOcrPage} from '../vendor/motore-ocr-ai/src/core/pipeline/decisionEngine';
 import type {OcrToken} from '../vendor/motore-ocr-ai/src/contracts';
@@ -14,6 +14,8 @@ export interface IndependentReaderState {
 }
 
 export interface DualReadingDiagnostics {
+ runtimeInfo?:RecognizerBRuntimeInfo;
+ regionalExecution?:RecognizerBRegionStats;
  alignment?:OcrAlignmentDiagnostics;
  primaryRegionalTokens?:Token[];
  primary:'tesseract';secondary:string;status:'used'|'unavailable'|'empty';
@@ -51,12 +53,12 @@ export async function readIndependent(
  const fullStart=performance.now();
  const result=await secondary.recognize(input,signal).catch(error=>{
   signal?.throwIfAborted();
-  return {id:secondary.id,tokens:[],text:'',score:0,confidence:null,warnings:[`RECOGNIZER_B_UNAVAILABLE:${error instanceof Error?error.message:String(error)}`]};
+  return {id:secondary.id,tokens:[],text:'',score:0,confidence:null,runtimeInfo:undefined as RecognizerBRuntimeInfo|undefined,warnings:[`RECOGNIZER_B_UNAVAILABLE:${error instanceof Error?error.message:String(error)}`]};
  });
  const fullMs=performance.now()-fullStart;
  signal?.throwIfAborted();
  const full=result.tokens.filter(t=>validToken(t,canvas.width,canvas.height));
- if(peiAlignment)return readPeiEvidence(canvas,pageNumber,primary,secondary,full,result.warnings,fullMs,signal,primaryRegions);
+ if(peiAlignment){const reading=await readPeiEvidence(canvas,pageNumber,primary,secondary,full,result.warnings,fullMs,signal,primaryRegions);reading.diagnostics.runtimeInfo=result.runtimeInfo;reading.diagnostics.regionalExecution=secondary.lastRegionStats;return reading;}
  addEvidenceTokens(evidence,'recognizer-b',full,`independent:${secondary.id}`);
  const disputed=rawTokens.filter(a=>(a.confidence??0)<80||full.some(b=>overlaps(a,b)&&key(a.text)!==key(b.text)));
  const regions=disputed.slice(0,8).map(t=>({box:{...t.box},reason:'independent-disagreement',kind:'text' as const}));
@@ -71,6 +73,7 @@ export async function readIndependent(
  const changed=stabilized.decisions.some(d=>d.changed);
  const tokens=changed?assignLines(stabilized.page.tokens.map(fromOcrToken)):primary.tokens.map(clone);
  const diagnostics:DualReadingDiagnostics={
+  runtimeInfo:result.runtimeInfo,regionalExecution:secondary.lastRegionStats,
   primary:'tesseract',secondary:secondary.id,
   status:full.length?'used':result.warnings.length?'unavailable':'empty',
   rawText:primary.text,rawTokens:primary.tokens.map(clone),

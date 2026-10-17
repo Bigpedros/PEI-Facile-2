@@ -3,6 +3,7 @@ build/
 dist/
 coverage/
 verification/
+recognizer-b/ocrs-wasm/target/
 .DS_Store
 *.log
 .env*

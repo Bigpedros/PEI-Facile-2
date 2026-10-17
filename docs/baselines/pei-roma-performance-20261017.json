@@ -1,0 +1,279 @@
+{
+  "scope": "Real Node acquisition on the same source PDF and models; not a browser or user-PC benchmark",
+  "qualityGatePassed": true,
+  "before": {
+    "processingTimeMs": 425544,
+    "totalFields": 188
+  },
+  "after": {
+    "processingTimeMs": 204887,
+    "totalFields": 188
+  },
+  "speedup": 2.0769692562241624,
+  "pages": [
+    {
+      "page": 1,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 29,
+      "afterFields": 29,
+      "beforeMs": 33580,
+      "afterMs": 17383,
+      "beforeSecondaryMs": 28846,
+      "afterSecondaryMs": 12568,
+      "beforeRegionalMs": 4865,
+      "afterRegionalMs": 3588,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 2,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 22,
+      "afterFields": 22,
+      "beforeMs": 39654,
+      "afterMs": 19189,
+      "beforeSecondaryMs": 34704,
+      "afterSecondaryMs": 14079,
+      "beforeRegionalMs": 5465,
+      "afterRegionalMs": 3305,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 3,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 10,
+      "afterFields": 10,
+      "beforeMs": 32178,
+      "afterMs": 13933,
+      "beforeSecondaryMs": 26801,
+      "afterSecondaryMs": 8582,
+      "beforeRegionalMs": 4409,
+      "afterRegionalMs": 734,
+      "regionalExecution": {
+        "directLine": 4,
+        "detector": 1,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 4,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 13,
+      "afterFields": 13,
+      "beforeMs": 25474,
+      "afterMs": 10714,
+      "beforeSecondaryMs": 22256,
+      "afterSecondaryMs": 7275,
+      "beforeRegionalMs": 4332,
+      "afterRegionalMs": 775,
+      "regionalExecution": {
+        "directLine": 4,
+        "detector": 1,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 5,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 8,
+      "afterFields": 8,
+      "beforeMs": 29713,
+      "afterMs": 15553,
+      "beforeSecondaryMs": 26058,
+      "afterSecondaryMs": 11582,
+      "beforeRegionalMs": 5309,
+      "afterRegionalMs": 2680,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 4,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 6,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 1,
+      "afterFields": 1,
+      "beforeMs": 12343,
+      "afterMs": 7752,
+      "beforeSecondaryMs": 10225,
+      "afterSecondaryMs": 5787,
+      "beforeRegionalMs": 4975,
+      "afterRegionalMs": 3403,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 7,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 59,
+      "afterFields": 59,
+      "beforeMs": 45952,
+      "afterMs": 21838,
+      "beforeSecondaryMs": 40463,
+      "afterSecondaryMs": 16715,
+      "beforeRegionalMs": 9024,
+      "afterRegionalMs": 5051,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 8,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 5,
+      "afterFields": 5,
+      "beforeMs": 27239,
+      "afterMs": 12414,
+      "beforeSecondaryMs": 23081,
+      "afterSecondaryMs": 8921,
+      "beforeRegionalMs": 6036,
+      "afterRegionalMs": 2811,
+      "regionalExecution": {
+        "directLine": 2,
+        "detector": 3,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 9,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 3,
+      "afterFields": 3,
+      "beforeMs": 46027,
+      "afterMs": 19952,
+      "beforeSecondaryMs": 40953,
+      "afterSecondaryMs": 14904,
+      "beforeRegionalMs": 5766,
+      "afterRegionalMs": 3192,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 10,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 16,
+      "afterFields": 16,
+      "beforeMs": 39437,
+      "afterMs": 19118,
+      "beforeSecondaryMs": 34483,
+      "afterSecondaryMs": 14151,
+      "beforeRegionalMs": 6197,
+      "afterRegionalMs": 4266,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 11,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 4,
+      "afterFields": 4,
+      "beforeMs": 49985,
+      "afterMs": 21532,
+      "beforeSecondaryMs": 44452,
+      "afterSecondaryMs": 16343,
+      "beforeRegionalMs": 7884,
+      "afterRegionalMs": 3535,
+      "regionalExecution": {
+        "directLine": 2,
+        "detector": 4,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 12,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 18,
+      "afterFields": 18,
+      "beforeMs": 36508,
+      "afterMs": 18085,
+      "beforeSecondaryMs": 31873,
+      "afterSecondaryMs": 13158,
+      "beforeRegionalMs": 6209,
+      "afterRegionalMs": 4016,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    }
+  ],
+  "input": {
+    "file": "public/downloads/PEI_Comune_Roma_Canonico_A4_020.pdf",
+    "pages": 12,
+    "sha256": "bfa11c5671b8365967cda8b3efa5b2be335c96ddba0c88fe6629b3f327166d8e"
+  },
+  "runtimeWasmSha256": "023dded05d0447193979fe12b91d1b992f6b956b903d9f5d025ea4106b009f94",
+  "limitations": [
+    "Node benchmark with browser-worker I/O adapted to the real WASM; not a browser timing measurement.",
+    "Runs used distinct processes on the same 8-vCPU-quota host, with some overlap; speedup is indicative, not an isolated CPU microbenchmark.",
+    "The input is the 12-page canonical A4 repository fixture, not the user's 13-page original.",
+    "Fresh random engine UUIDs are excluded from comparisons; all other field properties are compared."
+  ]
+}
