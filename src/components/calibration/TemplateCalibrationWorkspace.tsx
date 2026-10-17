@@ -1,4 +1,3 @@
-import { buildStoredPageDiagnostics, type RecognitionSnapshot } from '../../core/recognitionSnapshot';
 /**
  * @license
  * PEI FACILE — Template Calibration Workspace (Phase 1D R01)
@@ -75,6 +74,7 @@ import type { TemplateSchema, TemplateSchemaField } from '../../core/templateSch
 import {
   detectFieldsOnPdfPage,
   detectFieldsOnEntireDocument,
+  collectPageRuntimeDiagnostics,
   getFieldProvenance,
   isProtectedDetectionField,
 } from '../../core/assistedFieldDetectionService';
@@ -321,6 +321,7 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
   const [detectionProgress, setDetectionProgress] = useState<{ current: number; total: number } | null>(null);
   const [detectedPages, setDetectedPages] = useState<Set<number>>(new Set());
   const detectionAbortControllerRef = useRef<AbortController | null>(null);
+  const autoDetectionExecutedRef = useRef<Set<string>>(new Set());
 
   // PDF canvas & interaction refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -400,7 +401,6 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
       pages: (model.pages || []).map((p) => ({
         pageNumber: p.pageNumber,
         widthPt: p.widthPt,
-        recognitionSnapshot: p.recognitionSnapshot,
         heightPt: p.heightPt,
       })),
       fields,
@@ -969,10 +969,8 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
       // Safe Reconstruction Rebuild Flow (CTE-FIX-02U): Preserves manual, confirmed, modified and rejected fields
       const protectedFields = existingRawFields.filter(isProtectedDetectionField);
 
-      let recognitionSnapshot: RecognitionSnapshot | undefined;
       const proposed = await detectFieldsOnPdfPage(pageProxy, targetPageNumber, protectedFields, {
         canvasElement: canvasRef.current || undefined,
-        onRecognitionSnapshot: snapshot => { recognitionSnapshot = snapshot; },
       });
 
       const finalFields = [...protectedFields, ...proposed];
@@ -990,7 +988,6 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
         updatedModel.pages.push(targetPage);
       }
       targetPage.fields = finalFields;
-      targetPage.recognitionSnapshot = recognitionSnapshot;
 
       setModelState((prev) => ({
         ...prev,
@@ -1104,6 +1101,17 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
 
         activeRenderTaskRef.current = renderTask;
         await renderTask.promise;
+
+        // All’apertura della calibrazione esegui il percorso completo quando PDF e canvas sono pronti
+        const pageKey = `${selectedModelId}_p${currentPage}`;
+        if (!autoDetectionExecutedRef.current.has(pageKey)) {
+          autoDetectionExecutedRef.current.add(pageKey);
+          try {
+            await executePageDetection(page, currentPage, { silentToast: true });
+          } catch (autoErr) {
+            console.warn('Auto-detection on canvas ready failed:', autoErr);
+          }
+        }
       } catch (err: any) {
         if (!isCancelled && err?.name !== 'RenderingCancelledException') {
           console.warn('PDF render on canvas warning:', err);
@@ -1456,27 +1464,30 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
   };
 
   // Export runtime page diagnostics JSON (CTE-FIX-02C) - READ-ONLY Snapshot
-  const handleExportPageDiagnostics = () => {
-    if (!currentModel) {
-      showToast('Modello non ancora disponibile per la diagnostica.');
+  const handleExportPageDiagnostics = async () => {
+    if (!cachedPdfDocRef.current?.doc || !currentModel) {
+      showToast('PDF non ancora disponibile per la diagnostica.');
       return;
     }
     try {
-      showToast('Esportazione delle evidenze salvate in corso...');
+      showToast('Estrazione diagnostica runtime in corso...');
+      const doc = cachedPdfDocRef.current.doc;
+      const pageProxy = await doc.getPage(currentPage);
       
       // READ-ONLY Snapshot of the current state of the page (which was already revalidated on detection)
-      const savedPage = currentModel.pages.find(p => p.pageNumber === currentPage);
-      if (!savedPage) throw new Error('Pagina del modello non disponibile.');
-      const trace = {
-        ...buildStoredPageDiagnostics(savedPage, currentModel),
-        renderedFieldGeometry: [] as any[],
-        persistedGeometryRevalidation: {} as Record<string, unknown>,
-      };
+      const trace = await collectPageRuntimeDiagnostics(pageProxy, {
+        canvasElement: canvasRef.current,
+        modelId: selectedModelId,
+        modelName: currentModel.modelName,
+        pageNumber: currentPage,
+        existingFields: rawFieldsOnPage,
+      });
 
       // Build renderedFieldGeometry from rawFieldsOnPage (since they are already the applied ones)
       const renderedFieldGeometry = rawFieldsOnPage.map((f) => {
         const clampedField = clampFieldToPageBounds(f, activePageWidthPt, activePageHeightPt) || f;
         const overlay = pdfRectToOverlayRect(clampedField, scale);
+        const unscaledViewport = pageProxy.getViewport({ scale: 1.0 });
 
         return {
           fieldId: f.fieldId,
@@ -1492,9 +1503,9 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
             schemaPageHeight: activePageHeightPt,
           },
           activeDocumentPage: {
-            documentPageWidth: savedPage.widthPt,
-            documentPageHeight: savedPage.heightPt,
-            coordinateSpace: 'Canonical PDF Points (origin: top-left)',
+            documentPageWidth: unscaledViewport.width || activePageWidthPt,
+            documentPageHeight: unscaledViewport.height || activePageHeightPt,
+            rotation: pageProxy.rotate || 0,
             viewportWidth: canvasWidthPx,
             viewportHeight: canvasHeightPx,
           },
@@ -1546,10 +1557,8 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      showToast(savedPage.recognitionSnapshot
-        ? `Diagnostica Pagina ${currentPage} esportata dalle evidenze salvate.`
-        : `Diagnostica esportata: evidenze OCR non disponibili per questo modello precedente; campi correnti inclusi.`);
+      URL.revokeObjectURL(url);
+      showToast(`Diagnostica Pagina ${currentPage} esportata con successo (Snapshot Read-Only).`);
     } catch (err: any) {
       console.error('Esportazione diagnostica runtime fallita:', err);
       showToast(`Errore esportazione diagnostica: ${err?.message || err}`);
@@ -2333,10 +2342,10 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
           <button
             type="button"
             id="btn-header-export-diagnostics"
-            disabled={!currentModel || isDetecting}
+            disabled={!currentModel || !cachedPdfDocRef.current?.doc || isDetecting}
             onClick={handleExportPageDiagnostics}
             className="px-2.5 py-1.5 rounded bg-purple-950/70 hover:bg-purple-900 text-purple-200 font-semibold border border-purple-700/60 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-xs"
-            title="Esporta diagnostica runtime reale della pagina in formato JSON (evidenze salvate, senza nuove letture OCR)"
+            title="Esporta diagnostica runtime reale della pagina in formato JSON (PDF.js + vettori + pipeline trace)"
           >
             <FileText className="w-3.5 h-3.5 text-purple-400" />
             <span>Esporta Diagnostica</span>
@@ -3914,10 +3923,10 @@ export const TemplateCalibrationWorkspace: React.FC<TemplateCalibrationWorkspace
                       <button
                         type="button"
                         id="btn-export-page-diagnostics"
-                        disabled={!currentModel || isDetecting}
+                        disabled={!currentModel || !cachedPdfDocRef.current?.doc || isDetecting}
                         onClick={handleExportPageDiagnostics}
                         className="w-full py-2 px-2.5 rounded-md bg-purple-950/70 hover:bg-purple-900 text-purple-200 font-semibold border border-purple-700/60 shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-xs"
-                        title="Esporta JSON di diagnostica runtime reale della pagina (evidenze salvate e campi correnti; nessuna nuova lettura OCR)"
+                        title="Esporta JSON di diagnostica runtime reale della pagina (Document, TextItems, VectorLines, VectorBoxes, Pipeline Trace, Final Fields)"
                       >
                         <FileText className="w-3.5 h-3.5 text-purple-400" />
                         <span>Esporta diagnostica pagina (JSON)</span>

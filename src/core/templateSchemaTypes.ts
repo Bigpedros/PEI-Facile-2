@@ -100,7 +100,6 @@ export interface TemplateSchema {
   schoolOrder?: SchoolOrder;
   totalPages: number;
   pages: Array<{
-    recognitionSnapshot?: import('./recognitionSnapshot').RecognitionSnapshot;
     pageNumber: number;
     widthPt: number;
     heightPt: number;

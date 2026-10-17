@@ -112,7 +112,6 @@ export interface FieldGeometry {
 }
 
 export interface PageGeometry {
-  recognitionSnapshot?: import('../../core/recognitionSnapshot').RecognitionSnapshot;
   pageNumber: number;
   widthPt: number;
   heightPt: number;

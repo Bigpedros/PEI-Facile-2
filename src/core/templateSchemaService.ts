@@ -1,4 +1,3 @@
-import { getCustomTemplate } from './templateStorage';
 /**
  * @license
  * PEI FACILE — Template Schema Service (Phase 1C R01)
@@ -155,7 +154,6 @@ export function buildMinisterialTemplateSchema(order: 'A1' | 'A2' | 'A3' | 'A4')
     pages: geom.pages.map((p) => ({
       pageNumber: p.pageNumber,
       widthPt: p.widthPt,
-      recognitionSnapshot: p.recognitionSnapshot,
       heightPt: p.heightPt,
     })),
     fields,
@@ -192,19 +190,6 @@ export async function getTemplateSchema(templateId: string): Promise<TemplateSch
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(`pei_template_schema_${templateId}`) : null;
     if (raw) {
       const schema = JSON.parse(raw) as TemplateSchema;
-      // Large OCR evidence belongs to IndexedDB, not the limited localStorage quota.
-      if (typeof indexedDB !== 'undefined') {
-        try {
-          const record = await getCustomTemplate(templateId, true);
-          if (record && (record.sourceSha256 === schema.sourceSha256 || record.normalizedSha256 === schema.sourceSha256)) {
-            schema.pages = schema.pages.map(p => ({ ...p,
-              recognitionSnapshot: record.pages.find(r => r.pageNumber === p.pageNumber)?.recognitionSnapshot,
-            }));
-          }
-        } catch (err) {
-          console.warn(`Could not load recognition evidence for ${templateId}:`, err);
-        }
-      }
       CUSTOM_SCHEMAS_CACHE.set(templateId, schema);
       return schema;
     }
@@ -225,8 +210,7 @@ export async function getTemplateSchema(templateId: string): Promise<TemplateSch
 export async function saveTemplateSchema(schema: TemplateSchema): Promise<void> {
   CUSTOM_SCHEMAS_CACHE.set(schema.templateId, schema);
   try {
-    const compactSchema = { ...schema, pages: schema.pages.map(({ recognitionSnapshot: _snapshot, ...page }) => page) };
-    localStorage.setItem(`pei_template_schema_${schema.templateId}`, JSON.stringify(compactSchema));
+    localStorage.setItem(`pei_template_schema_${schema.templateId}`, JSON.stringify(schema));
   } catch (err) {
     console.warn(`Could not save schema for ${schema.templateId}:`, err);
   }
@@ -327,7 +311,6 @@ export function createTemplateSchemaFromCandidates(
     pages: pages.map((p) => ({
       pageNumber: p.pageNumber,
       widthPt: p.widthPt,
-      recognitionSnapshot: p.recognitionSnapshot,
       heightPt: p.heightPt,
     })),
     fields,

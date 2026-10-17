@@ -1,4 +1,3 @@
-import { captureRecognitionSnapshot } from './recognitionSnapshot';
 import { pageCandidates } from './documental/bridge';
 /**
  * @license
@@ -188,8 +187,7 @@ export async function acquirePdfTemplate(
   const document = normAcquisitionResult.documentalResult;
   if (!document) throw new Error('Risultato documentale non disponibile.');
   const pages = document.pages.map(p => ({pageNumber:p.pageNumber,widthPt:210/25.4*72,
-    heightPt:297/25.4*72,fields:pageCandidates(p),
-    recognitionSnapshot:captureRecognitionSnapshot(p,pageCandidates(p),'acquisition')}));
+    heightPt:297/25.4*72,fields:pageCandidates(p)}));
   const geometryCandidates = pages.flatMap(p=>p.fields);
   return {
     templateId:`tpl_custom_${sourceSha256.slice(0,12)}`,sourceFileName:fileName,sourceSha256,
