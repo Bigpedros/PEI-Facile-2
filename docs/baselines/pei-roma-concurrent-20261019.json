@@ -1,0 +1,300 @@
+{
+  "scope": "Real Node acquisition on the same source PDF and models; not a browser or user-PC benchmark",
+  "qualityGatePassed": true,
+  "before": {
+    "processingTimeMs": 302059,
+    "totalFields": 188
+  },
+  "after": {
+    "processingTimeMs": 275370,
+    "totalFields": 188
+  },
+  "speedup": 1.0969205069542798,
+  "pages": [
+    {
+      "page": 1,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 29,
+      "afterFields": 29,
+      "beforeMs": 26501,
+      "afterMs": 22178,
+      "beforeSecondaryMs": 18496,
+      "afterSecondaryMs": 14304,
+      "beforeRegionalMs": 5264,
+      "afterRegionalMs": 5874,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 2,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 22,
+      "afterFields": 22,
+      "beforeMs": 27656,
+      "afterMs": 26217,
+      "beforeSecondaryMs": 21165,
+      "afterSecondaryMs": 17073,
+      "beforeRegionalMs": 6666,
+      "afterRegionalMs": 6447,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 3,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 10,
+      "afterFields": 10,
+      "beforeMs": 21696,
+      "afterMs": 21360,
+      "beforeSecondaryMs": 14431,
+      "afterSecondaryMs": 7758,
+      "beforeRegionalMs": 1323,
+      "afterRegionalMs": 1123,
+      "regionalExecution": {
+        "directLine": 4,
+        "detector": 1,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 4,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 13,
+      "afterFields": 13,
+      "beforeMs": 14004,
+      "afterMs": 14905,
+      "beforeSecondaryMs": 9694,
+      "afterSecondaryMs": 9001,
+      "beforeRegionalMs": 1275,
+      "afterRegionalMs": 1332,
+      "regionalExecution": {
+        "directLine": 4,
+        "detector": 1,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 5,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 8,
+      "afterFields": 8,
+      "beforeMs": 20461,
+      "afterMs": 21058,
+      "beforeSecondaryMs": 15536,
+      "afterSecondaryMs": 14280,
+      "beforeRegionalMs": 5128,
+      "afterRegionalMs": 5543,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 4,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 6,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 1,
+      "afterFields": 1,
+      "beforeMs": 12559,
+      "afterMs": 11126,
+      "beforeSecondaryMs": 9539,
+      "afterSecondaryMs": 8365,
+      "beforeRegionalMs": 6350,
+      "afterRegionalMs": 6037,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 7,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 59,
+      "afterFields": 59,
+      "beforeMs": 31271,
+      "afterMs": 24459,
+      "beforeSecondaryMs": 23941,
+      "afterSecondaryMs": 17072,
+      "beforeRegionalMs": 7883,
+      "afterRegionalMs": 7463,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 8,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 5,
+      "afterFields": 5,
+      "beforeMs": 15856,
+      "afterMs": 16743,
+      "beforeSecondaryMs": 11566,
+      "afterSecondaryMs": 10963,
+      "beforeRegionalMs": 3427,
+      "afterRegionalMs": 3886,
+      "regionalExecution": {
+        "directLine": 2,
+        "detector": 3,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 9,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 3,
+      "afterFields": 3,
+      "beforeMs": 28404,
+      "afterMs": 31580,
+      "beforeSecondaryMs": 21602,
+      "afterSecondaryMs": 23253,
+      "beforeRegionalMs": 4882,
+      "afterRegionalMs": 7706,
+      "regionalExecution": {
+        "directLine": 1,
+        "detector": 5,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 10,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 16,
+      "afterFields": 16,
+      "beforeMs": 32317,
+      "afterMs": 25973,
+      "beforeSecondaryMs": 25204,
+      "afterSecondaryMs": 18083,
+      "beforeRegionalMs": 9970,
+      "afterRegionalMs": 7617,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 11,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 4,
+      "afterFields": 4,
+      "beforeMs": 31538,
+      "afterMs": 26967,
+      "beforeSecondaryMs": 24127,
+      "afterSecondaryMs": 19861,
+      "beforeRegionalMs": 5094,
+      "afterRegionalMs": 5265,
+      "regionalExecution": {
+        "directLine": 2,
+        "detector": 4,
+        "fallback": 0
+      }
+    },
+    {
+      "page": 12,
+      "textIdentical": true,
+      "positionedTokensIdentical": true,
+      "proposedFieldsIdentical": true,
+      "primaryEvidenceIdentical": true,
+      "fullSecondaryEvidenceIdentical": true,
+      "beforeFields": 18,
+      "afterFields": 18,
+      "beforeMs": 28134,
+      "afterMs": 21648,
+      "beforeSecondaryMs": 19311,
+      "afterSecondaryMs": 13784,
+      "beforeRegionalMs": 6297,
+      "afterRegionalMs": 6244,
+      "regionalExecution": {
+        "directLine": 0,
+        "detector": 6,
+        "fallback": 0
+      }
+    }
+  ],
+  "input": {
+    "path": "public/downloads/PEI_Comune_Roma_Canonico_A4_020.pdf",
+    "pages": 12,
+    "sha256": "bfa11c5671b8365967cda8b3efa5b2be335c96ddba0c88fe6629b3f327166d8e"
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "linux x64",
+    "cpu": "Intel Xeon Platinum 8573C",
+    "cpuQuota": 8,
+    "dpi": 200,
+    "readers": [
+      "Tesseract",
+      "OCRS/RTen SIMD"
+    ],
+    "transport": "Node worker_threads adapts browser worker; inference is real"
+  },
+  "method": {
+    "date": "2026-10-19",
+    "order": [
+      "serial",
+      "parallel"
+    ],
+    "benchmarksOverlapped": false,
+    "runsPerMode": 1,
+    "limitation": "Host variability; not a statistical guarantee, browser measurement or user-PC measurement. A final typecheck overlapped the start of the serial run; use pages 3–12 for the warm comparison below, after checks ended."
+  },
+  "warmPages3to12": {
+    "beforeMs": 236240,
+    "afterMs": 215819,
+    "reductionPercent": 8.64
+  },
+  "totalReductionPercent": 8.84
+}

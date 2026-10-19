@@ -3,6 +3,7 @@
  * PEI FACILE — Custom Model Manager (Simplified Model Management)
  */
 
+import { formatAcquisitionRemaining } from '../../core/acquisitionEstimate';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { SchoolOrder, PeiModelDefinition, ModelOriginType, PeiDocument } from '../../types/pei';
 import { getModelOriginDisplayLabel } from '../../data/peiModelRegistry';
@@ -104,6 +105,7 @@ export const CustomModelManager: React.FC<CustomModelManagerProps> = ({
   } | null>(null);
   const [acquisitionStartTime, setAcquisitionStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [completedSample, setCompletedSample] = useState({ pages: 0, seconds: 0 });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [acquisitionResult, setAcquisitionResult] = useState<TemplateAcquisitionResult | null>(null);
@@ -229,8 +231,11 @@ export const CustomModelManager: React.FC<CustomModelManagerProps> = ({
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsAcquiring(true);
-    setAcquisitionStartTime(Date.now());
+    const startedAt = Date.now();
+    let lastStartedPage = 0;
+    setAcquisitionStartTime(startedAt);
     setElapsedSeconds(0);
+    setCompletedSample({ pages: 0, seconds: 0 });
 
     try {
       const sourceBuffer = await file.arrayBuffer();
@@ -243,6 +248,10 @@ export const CustomModelManager: React.FC<CustomModelManagerProps> = ({
         signal: controller.signal,
         onProgress: (p) => {
           if (!controller.signal.aborted) {
+            if (p.currentPage > lastStartedPage) {
+              lastStartedPage = p.currentPage;
+              setCompletedSample({ pages: Math.max(0, p.currentPage - 1), seconds: (Date.now() - startedAt) / 1000 });
+            }
             setAcquisitionProgress({
               currentPage: p.currentPage,
               totalPages: p.totalPages,
@@ -921,6 +930,8 @@ export const CustomModelManager: React.FC<CustomModelManagerProps> = ({
                     </div>
                   </div>
 
+                  <p className="text-[11px] text-[var(--text-secondary)]">L’acquisizione può richiedere diversi minuti, in base alla complessità del documento.</p>
+
                   {/* Barra di Avanzamento Reale */}
                   <div className="space-y-1.5 pt-2">
                     <div className="flex items-center justify-between text-[11px] font-semibold">
@@ -955,15 +966,10 @@ export const CustomModelManager: React.FC<CustomModelManagerProps> = ({
                         Tempo trascorso: <strong className="font-mono text-[var(--text)]">{Math.floor(elapsedSeconds / 60)}:{(elapsedSeconds % 60).toString().padStart(2, '0')}</strong>
                       </span>
                     </div>
-                    {acquisitionProgress && acquisitionProgress.currentPage > 0 && acquisitionProgress.totalPages > 0 && elapsedSeconds > 1 && (
-                      <div className="col-span-2 text-right text-[10px] text-[var(--text-secondary)] italic">
-                        Tempo stimato restante: {(() => {
-                          const avgSec = elapsedSeconds / acquisitionProgress.currentPage;
-                          const remPages = acquisitionProgress.totalPages - acquisitionProgress.currentPage;
-                          if (remPages <= 0) return 'Quasi completato...';
-                          const remSec = Math.max(1, Math.round(avgSec * remPages));
-                          return `Circa ${remSec}s rimanenti (stima)`;
-                        })()}
+                    {acquisitionProgress && completedSample.pages >= 2 && (
+                      <div className="col-span-2 text-right text-[10px] text-[var(--text-secondary)]" role="status">
+                        <div>{formatAcquisitionRemaining(completedSample, acquisitionProgress.totalPages, elapsedSeconds)}</div>
+                        <div>La previsione si aggiorna durante l’elaborazione.</div>
                       </div>
                     )}
                   </div>

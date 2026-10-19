@@ -53,7 +53,7 @@ export class LocalRecognizer {
   }finally{if(!this.terminated&&!this.options.signal?.aborted)await worker.setParameters({tessedit_pageseg_mode:this.options.segmentation==='block'?PSM.SINGLE_BLOCK:this.options.segmentation==='sparse'?PSM.SPARSE_TEXT:PSM.AUTO});}
   return tokens;
  }
- async recognizeIndependent(canvas:HTMLCanvasElement,page:number,primary:{tokens:Token[];text:string}){
+ async recognizeIndependent(canvas:HTMLCanvasElement,page:number,primary:{tokens:Token[];text:string}|Promise<{tokens:Token[];text:string}>){
   this.options.signal?.throwIfAborted();
   this.secondary??=this.options.recognizerB??createIndependentRecognizer();
   const secondary=this.secondary,stop=()=>{void secondary.dispose?.();};

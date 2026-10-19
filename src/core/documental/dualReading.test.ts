@@ -11,6 +11,22 @@ const a=(text:string,confidence=55):Token=>({id:'a',text,confidence,source:'ocr'
 const b=(text:string):OcrToken=>({id:'b',text,confidence:85,provenance:'ocr',lineId:'b1',box:{x:52,y:50,width:88,height:20}});
 const secondary=(word:OcrToken):RecognizerB=>({id:'ocrs-test',recognize:vi.fn(async()=>({id:'ocrs-test',tokens:[word],text:word.text,score:85,confidence:85,warnings:[]})),recognizeRegions:vi.fn(async()=>[{...word,id:'br'}])});
 describe('Secondo lettore indipendente PEI',()=>{
+ it('avvia B prima che A termini e riconcilia dopo entrambi, con risultati invariati',async()=>{
+  const primary={tokens:[a('Sez1one')],text:'Sez1one'};
+  let finish!:(value:typeof primary)=>void;
+  const waiting=new Promise<typeof primary>(resolve=>{finish=resolve;});
+  const reader=secondary(b('Sezione'));
+  const pending=readIndependent(canvas(),1,waiting,reader);
+  expect(reader.recognize).toHaveBeenCalledTimes(1);
+  await Promise.resolve();expect(reader.recognizeRegions).not.toHaveBeenCalled();finish(primary);
+  const parallel=await pending,serial=await readIndependent(canvas(),1,primary,secondary(b('Sezione')));
+  expect(parallel.tokens).toEqual(serial.tokens);expect(parallel.diagnostics.decisions).toEqual(serial.diagnostics.decisions);
+  expect(parallel.diagnostics.executionMode).toBe('parallel-full-page');
+ });
+ it('propaga il fallimento di A senza attendere una seconda lettura bloccata',async()=>{
+  const reader:RecognizerB={id:'pending',recognize:()=>new Promise(()=>{})};
+  await expect(readIndependent(canvas(),1,Promise.reject(Error('primary failed')),reader)).rejects.toThrow('primary failed');
+ });
  it('passa le intestazioni B alla fase 4 senza sostituire i valori primari o ripetere la lettura completa',async()=>{
   const c=createCanvas(800,1100),ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,800,1100);ctx.strokeStyle='black';ctx.strokeRect(40,100,480,100);ctx.beginPath();ctx.moveTo(280,100);ctx.lineTo(280,200);ctx.moveTo(40,150);ctx.lineTo(520,150);ctx.stroke();
   const primary:Token={...a('Anna Verdi',98),box:{x:50,y:160,width:150,height:18}},heads:OcrToken[]=[{...b('Nome e Cognome'),id:'bh1',box:{x:50,y:110,width:150,height:18}},{...b('Firma'),id:'bh2',box:{x:300,y:110,width:100,height:18}}];

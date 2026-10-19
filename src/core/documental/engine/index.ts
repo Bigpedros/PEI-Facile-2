@@ -37,7 +37,7 @@ export async function analyzeRasterPage(raw:RasterPage,options:EngineOptions,rec
  options.signal?.throwIfAborted();const start=performance.now();
  const prepared=alreadyCanonical?{canvas:raw.canvas,tokens:raw.nativeTokens,
   transform:{sourceWidth:raw.canvas.width,sourceHeight:raw.canvas.height,scale:1,offsetX:0,offsetY:0,rotation:0},physicalSizeMm:raw.physicalSizeMm??null}:normalize(raw,options);
- const stageTimingsMs={normalization:Math.round(performance.now()-start),primaryOcr:0,secondaryOcr:0,geometry:0,fieldInference:0,structuralRecovery:0};
+ const stageTimingsMs={normalization:Math.round(performance.now()-start),primaryOcr:0,secondaryOcr:0,ocrWall:0,geometry:0,fieldInference:0,structuralRecovery:0};
  const warnings=[...raw.warnings];
  const mixed=raw.hasRasterImages&&prepared.tokens.length>0;
  const native=(prepared.tokens.length>0||(raw.nativeFields?.length??0)>0)&&!mixed&&!options.forceOcr&&!warnings.some(w=>w.startsWith('Testo PDF ruotato'));
@@ -52,14 +52,21 @@ export async function analyzeRasterPage(raw:RasterPage,options:EngineOptions,rec
  if(!native){
   options.onProgress?.(`Pagina ${raw.pageNumber} · OCR`,0);
   const primaryStart=performance.now();
-  if(options.customOcrRunner){const read=await options.customOcrRunner(prepared.canvas);text=read.text;tokens=read.tokens??[];if(!tokens.length)warnings.push('OCR esterno senza coordinate: geometrie testuali non disponibili.');}
-  else{const read=await recognizer.recognize(recognitionImage(prepared.canvas,options.contrast),raw.pageNumber);tokens=read.tokens;text=read.text;}
-  stageTimingsMs.primaryOcr=Math.round(performance.now()-primaryStart);
+  const primaryRead=(async()=>{
+   let read:{tokens:Token[];text:string};
+   if(options.customOcrRunner){const external=await options.customOcrRunner(prepared.canvas);read={text:external.text,tokens:external.tokens??[]};if(!read.tokens.length)warnings.push('OCR esterno senza coordinate: geometrie testuali non disponibili.');}
+   else read=await recognizer.recognize(recognitionImage(prepared.canvas,options.contrast),raw.pageNumber);
+   stageTimingsMs.primaryOcr=Math.round(performance.now()-primaryStart);
+   return read;
+  })();
   if(options.independentReading!==false&&!options.customOcrRunner){
-   options.onProgress?.(`Pagina ${raw.pageNumber} · seconda lettura OCRS/RTen`,0);
-   const secondaryStart=performance.now();
-   const independent=await recognizer.recognizeIndependent(prepared.canvas,raw.pageNumber,{tokens,text});
-   stageTimingsMs.secondaryOcr=Math.round(performance.now()-secondaryStart);
+   const parallel=options.parallelIndependentReading!==false;
+   options.onProgress?.(`Pagina ${raw.pageNumber} · ${parallel?'lettura testo e seconda lettura OCRS/RTen':'seconda lettura OCRS/RTen'}`,0);
+   const independent=await recognizer.recognizeIndependent(prepared.canvas,raw.pageNumber,parallel?primaryRead:await primaryRead);
+   // secondaryOcr counts the remaining wait after A. B’s own overlapping times
+   // remain in ocrReading.timingsMs; ocrWall is a subtotal, not another stage.
+   stageTimingsMs.ocrWall=Math.round(performance.now()-primaryStart);
+   stageTimingsMs.secondaryOcr=Math.max(0,stageTimingsMs.ocrWall-stageTimingsMs.primaryOcr);
    tokens=independent.tokens;text=independent.text;ocrReading=independent.diagnostics;
    secondReader={configured:true,readerId:ocrReading.secondary,stage:'core',
     availability:ocrReading.status==='unavailable'?'unavailable':'available',
@@ -67,7 +74,7 @@ export async function analyzeRasterPage(raw:RasterPage,options:EngineOptions,rec
     reason:ocrReading.status==='unavailable'?'RECOGNIZER_B_UNAVAILABLE':ocrReading.status==='empty'?'RECOGNIZER_B_EMPTY':'DUAL_READING_COMPLETED',
     returnedPositionedWords:ocrReading.secondaryTokens.length};
    warnings.push(...ocrReading.warnings,`RECOGNIZER_B_STATUS:${ocrReading.status}`,`RECOGNIZER_B_TOKENS:${ocrReading.secondaryTokens.length}`,`DUAL_READING_CHANGED:${ocrReading.changed}`);
-  }
+  }else{const read=await primaryRead;tokens=read.tokens;text=read.text;stageTimingsMs.ocrWall=stageTimingsMs.primaryOcr;}
  }
  if(mixed&&!options.forceOcr){tokens=assignLines([...prepared.tokens,...tokens.filter(t=>!prepared.tokens.some(n=>intersectionRatio(t.box,n.box)>.55))]);text=tokensToText(tokens);warnings.push('Pagina mista: testo nativo conservato e OCR delle informazioni raster, da verificare.');}
  options.signal?.throwIfAborted();

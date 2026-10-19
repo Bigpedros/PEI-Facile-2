@@ -23,6 +23,7 @@ export interface DualReadingDiagnostics {
  regionalTokens:Token[];decisions:OcrDecision[];
  agreements:number;disagreements:number;changed:number;
  secondaryConfidenceKind:'heuristic';warnings:string[];
+ executionMode?:'parallel-full-page'|'serial';
  timingsMs?:{fullPage:number;regional:number;primaryRegional?:number};
 }
 
@@ -42,23 +43,26 @@ export function createIndependentRecognizer():RecognizerB {
  * selects text, retaining A's coordinates and preserving an auditable raw snapshot.
  */
 export async function readIndependent(
- canvas:HTMLCanvasElement,pageNumber:number,primary:{tokens:Token[];text:string},
+ canvas:HTMLCanvasElement,pageNumber:number,primaryInput:{tokens:Token[];text:string}|Promise<{tokens:Token[];text:string}>,
  secondary:RecognizerB,signal?:AbortSignal,peiAlignment=false,primaryRegions?:(regions:RetryPlanRegion[])=>Promise<Token[]>,
 ):Promise<{tokens:Token[];text:string;diagnostics:DualReadingDiagnostics}> {
  signal?.throwIfAborted();
  const input={image:canvas,pageNumber,width:canvas.width,height:canvas.height};
- const rawTokens=primary.tokens.map(toOcrToken);
- const raw=createRawOcrSnapshot({...input,tokens:rawTokens,text:primary.text,warnings:[]});
- const evidence=createEvidenceSet(raw);
  const fullStart=performance.now();
- const result=await secondary.recognize(input,signal).catch(error=>{
+ const fullRead=secondary.recognize(input,signal).catch(error=>{
   signal?.throwIfAborted();
   return {id:secondary.id,tokens:[],text:'',score:0,confidence:null,runtimeInfo:undefined as RecognizerBRuntimeInfo|undefined,warnings:[`RECOGNIZER_B_UNAVAILABLE:${error instanceof Error?error.message:String(error)}`]};
  });
- const fullMs=performance.now()-fullStart;
+ const timedFull=fullRead.then(result=>({result,fullMs:performance.now()-fullStart}));
+ // B starts without A’s text; reconciliation and regional planning await both.
+ const [primary,{result,fullMs}]=await Promise.all([primaryInput,timedFull]);
+ const rawTokens=primary.tokens.map(toOcrToken);
+ const raw=createRawOcrSnapshot({...input,tokens:rawTokens,text:primary.text,warnings:[]});
+ const evidence=createEvidenceSet(raw);
+
  signal?.throwIfAborted();
  const full=result.tokens.filter(t=>validToken(t,canvas.width,canvas.height));
- if(peiAlignment){const reading=await readPeiEvidence(canvas,pageNumber,primary,secondary,full,result.warnings,fullMs,signal,primaryRegions);reading.diagnostics.runtimeInfo=result.runtimeInfo;reading.diagnostics.regionalExecution=secondary.lastRegionStats;return reading;}
+ if(peiAlignment){const reading=await readPeiEvidence(canvas,pageNumber,primary,secondary,full,result.warnings,fullMs,signal,primaryRegions);reading.diagnostics.executionMode=primaryInput instanceof Promise?'parallel-full-page':'serial';reading.diagnostics.runtimeInfo=result.runtimeInfo;reading.diagnostics.regionalExecution=secondary.lastRegionStats;return reading;}
  addEvidenceTokens(evidence,'recognizer-b',full,`independent:${secondary.id}`);
  const disputed=rawTokens.filter(a=>(a.confidence??0)<80||full.some(b=>overlaps(a,b)&&key(a.text)!==key(b.text)));
  const regions=disputed.slice(0,8).map(t=>({box:{...t.box},reason:'independent-disagreement',kind:'text' as const}));
@@ -73,6 +77,7 @@ export async function readIndependent(
  const changed=stabilized.decisions.some(d=>d.changed);
  const tokens=changed?assignLines(stabilized.page.tokens.map(fromOcrToken)):primary.tokens.map(clone);
  const diagnostics:DualReadingDiagnostics={
+  executionMode:primaryInput instanceof Promise?'parallel-full-page':'serial',
   runtimeInfo:result.runtimeInfo,regionalExecution:secondary.lastRegionStats,
   primary:'tesseract',secondary:secondary.id,
   status:full.length?'used':result.warnings.length?'unavailable':'empty',
