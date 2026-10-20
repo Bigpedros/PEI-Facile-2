@@ -59,4 +59,3 @@ function rebuildNativeText(tokens:OcrToken[]):string{
   const lines=new Map<string,OcrToken[]>();for(const token of tokens){const a=lines.get(token.lineId)??[];a.push(token);lines.set(token.lineId,a);}
   return[...lines.values()].sort((a,b)=>Math.min(...a.map(t=>t.box.y))-Math.min(...b.map(t=>t.box.y))).map(line=>line.sort((a,b)=>a.box.x-b.box.x).map(t=>t.text).join(' ')).join('\n');
 }
-

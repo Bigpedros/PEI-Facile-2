@@ -1,0 +1,19 @@
+name: MOTORE 0.5 Alignment Check
+
+on:
+  push:
+    branches: [ motore-0.5-alignment ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run src/core/documental/dualReading.test.ts src/core/documental/ocrAlignment.test.ts src/core/documental/recognizerBRegions.test.ts src/core/documental/recognizerBRuntime.test.ts src/core/documental/structuralCoverage.test.ts src/core/documental/phase2RealAcquisition.test.ts src/core/documental/phase3RealAcquisition.test.ts src/core/documental/phase6RealAcquisition.test.ts src/data/geometry/geometryValidation.test.ts src/tests/peiFieldDetectionProfile.test.ts
+      - run: npm run build

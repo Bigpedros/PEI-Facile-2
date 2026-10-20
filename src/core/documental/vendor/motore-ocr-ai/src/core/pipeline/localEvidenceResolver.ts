@@ -233,4 +233,3 @@ function cloneToken(token:Readonly<OcrToken>):OcrToken{
     ...(token.characters?{characters:token.characters.map(character=>({...character,box:{...character.box}}))}:{})
   };
 }
-
