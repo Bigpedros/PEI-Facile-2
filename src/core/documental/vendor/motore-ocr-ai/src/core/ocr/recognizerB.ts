@@ -2,19 +2,21 @@ import type {Box,OcrPage,OcrProviderVariantEvidence,OcrToken} from '../../contra
 import type {OcrPageInput,OcrProvider,OcrRetryRegion} from './provider.js';
 
 export interface RecognizerBResult{
+  runtimeInfo?:RecognizerBRuntimeInfo;
   id:string;
   tokens:OcrToken[];
   text:string;
   score:number;
   confidence:number|null;
   warnings:string[];
-  timingMs?:number;
 }
 
 export interface RecognizerB{
+  readonly lastRegionStats?:RecognizerBRegionStats;
   readonly id:string;
   recognize(input:OcrPageInput,signal?:AbortSignal):Promise<RecognizerBResult>;
   recognizeRegions?(input:OcrPageInput,regions:OcrRetryRegion[],signal?:AbortSignal):Promise<OcrToken[]>;
+  dispose?():Promise<void>;
 }
 
 export interface OcrsWasmRecognizerBOptions{
@@ -25,7 +27,11 @@ export interface OcrsWasmRecognizerBOptions{
 }
 
 interface OcrsWordJson{text:string;rect:[number,number,number,number]}
-interface OcrsWasmInstance{recognize_rgba:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>}
+export interface RecognizerBRuntimeInfo {
+  variant:'simd'|'scalar';moduleUrl:string;initializationMs:number;fallbackReason?:string;supportsLineRecognition?:boolean;
+}
+export interface RecognizerBRegionStats{directLine:number;detector:number;fallback:number}
+export interface OcrsWasmInstance{readonly runtimeInfo?:RecognizerBRuntimeInfo;recognize_rgba:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>;recognize_line_rgba?:(pixels:Uint8Array,width:number,height:number)=>string|Promise<string>;free?:()=>void}
 interface OcrsWasmConstructor{new(detection:Uint8Array,recognition:Uint8Array):OcrsWasmInstance}
 interface OcrsWasmModule{
   default?:(input?:unknown)=>Promise<unknown>|unknown;
@@ -35,10 +41,11 @@ interface OcrsWasmModule{
 const dynamicImport=(url:string)=>new Function('u','return import(u)')(url) as Promise<OcrsWasmModule>;
 
 export class OcrsWasmRecognizerB implements RecognizerB{
+  lastRegionStats:RecognizerBRegionStats={directLine:0,detector:0,fallback:0};
   readonly id='ocrs-rten-wasm';
   private runtime?:Promise<OcrsWasmInstance>;
   private readonly options:Required<OcrsWasmRecognizerBOptions>;
-  constructor(options:OcrsWasmRecognizerBOptions={}){
+  constructor(options:OcrsWasmRecognizerBOptions={},private runtimeFactory?:()=>Promise<OcrsWasmInstance>){
     this.options={
       moduleUrl:options.moduleUrl??'/recognizer-b/ocrs_wasm.js',
       detectionModelUrl:options.detectionModelUrl??'/models/text-detection.rten',
@@ -48,30 +55,47 @@ export class OcrsWasmRecognizerB implements RecognizerB{
   }
 
   async recognize(input:OcrPageInput,signal?:AbortSignal):Promise<RecognizerBResult>{
-    const started=performance.now();
+    this.lastRegionStats={directLine:0,detector:0,fallback:0};
     signal?.throwIfAborted();
-    if(!isCanvas(input.image))return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:['RECOGNIZER_B_IMAGE_UNAVAILABLE'],timingMs:performance.now()-started};
+    if(!isCanvas(input.image))return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:['RECOGNIZER_B_IMAGE_UNAVAILABLE']};
     try{
       const runtime=await this.getRuntime(signal);
       const words=await recognizeCanvas(runtime,input.image,signal);
       const tokens=wordsToTokens(words,input.pageNumber,0,0,'b');
-      return{id:this.id,tokens,text:rebuild(tokens),score:scoreTokens(tokens),confidence:tokens.length?averageConfidence(tokens):null,warnings:[],timingMs:performance.now()-started};
+      return{id:this.id,tokens,text:rebuild(tokens),score:scoreTokens(tokens),confidence:tokens.length?averageConfidence(tokens):null,warnings:[],runtimeInfo:runtime.runtimeInfo};
     }catch(error){
-      return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:[`RECOGNIZER_B_UNAVAILABLE:${message(error)}`],timingMs:performance.now()-started};
+      signal?.throwIfAborted();
+      return{id:this.id,tokens:[],text:'',score:0,confidence:null,warnings:[`RECOGNIZER_B_UNAVAILABLE:${message(error)}`]};
     }
   }
 
   async recognizeRegions(input:OcrPageInput,regions:OcrRetryRegion[],signal?:AbortSignal):Promise<OcrToken[]>{
+    this.lastRegionStats={directLine:0,detector:0,fallback:0};
     signal?.throwIfAborted();
     if(!isCanvas(input.image)||!regions.length)return[];
     let runtime:OcrsWasmInstance;
-    try{runtime=await this.getRuntime(signal);}catch{return[];}
+    try{runtime=await this.getRuntime(signal);}catch{signal?.throwIfAborted();return[];}
     const output:OcrToken[]=[];
     for(const [index,region] of regions.slice(0,this.options.regionLimit).entries()){
       signal?.throwIfAborted();
       const crop=cropCanvas(input.image,region.box,.08);
       if(!crop)continue;
-      const words=await recognizeCanvas(runtime,crop.canvas,signal).catch(()=>[]);
+      // Small already-positioned disputes can be read as a line. Oversized or
+      // missing text and arbitrary regions retain the complete detector path.
+      const direct=!!runtime.recognize_line_rgba&&runtime.runtimeInfo?.supportsLineRecognition!==false&&
+        region.kind==='text'&&['critical-disagreement','segmentation-mismatch'].includes(region.reason)&&
+        crop.canvas.height>=8&&crop.canvas.height<=80&&crop.canvas.width<=crop.canvas.height*16;
+      let words:OcrsWordJson[]=[];
+      if(direct){
+        this.lastRegionStats.directLine++;
+        words=await recognizeCanvas(runtime,crop.canvas,signal,true).catch(()=>{signal?.throwIfAborted();return[];});
+      }
+      if(!direct||!words.length){
+        if(direct)this.lastRegionStats.fallback++;
+        this.lastRegionStats.detector++;
+        words=await recognizeCanvas(runtime,crop.canvas,signal).catch(()=>{signal?.throwIfAborted();return[];});
+      }
+      crop.canvas.width=crop.canvas.height=1;
       const mapped=wordsToTokens(words,input.pageNumber,crop.x,crop.y,`br${index}`);
       for(const token of mapped){
         token.correctionReason=`recognizer-b:${this.id}:${region.reason}`;
@@ -82,8 +106,13 @@ export class OcrsWasmRecognizerB implements RecognizerB{
   }
 
   private async getRuntime(signal?:AbortSignal):Promise<OcrsWasmInstance>{
-    if(!this.runtime)this.runtime=this.loadRuntime(signal);
+    if(!this.runtime)this.runtime=this.runtimeFactory?this.runtimeFactory():this.loadRuntime(signal);
     return this.runtime;
+  }
+
+  async dispose():Promise<void>{
+    const runtime=this.runtime;this.runtime=undefined;
+    if(runtime){try{(await runtime).free?.();}catch{/* unavailable runtime owns no WASM instance */}}
   }
 
   private async loadRuntime(signal?:AbortSignal):Promise<OcrsWasmInstance>{
@@ -106,46 +135,11 @@ export class DualRecognizerOcrProvider implements OcrProvider{
   }
 
   async recognize(input:OcrPageInput,signal?:AbortSignal):Promise<OcrPage>{
-    signal?.throwIfAborted();
-    const wallStarted=performance.now();
+    const page=await this.primary.recognize(input,signal);
+    if(!shouldRunSecondary(page))return page;
     const independentInput=this.primary.prepareIndependentInput?.(input)??input;
-
-    // Full-page readers are deliberately started together. Reconciliation still treats
-    // the primary raster as immutable and the secondary result only as independent evidence.
-    const primaryStarted=performance.now();
-    const primaryPromise=this.primary.recognize(input,signal).then(page=>({
-      page,
-      timingMs:performance.now()-primaryStarted
-    }));
-    const secondaryStarted=performance.now();
-    const secondaryPromise=this.secondary.recognize(independentInput,signal).then(result=>({
-      result,
-      timingMs:result.timingMs??(performance.now()-secondaryStarted)
-    }));
-
-    const [{page,timingMs:primaryMs},{result,timingMs:secondaryMs}]=await Promise.all([primaryPromise,secondaryPromise]);
-    signal?.throwIfAborted();
-    const wallMs=performance.now()-wallStarted;
-    const timingWarnings=[
-      'OCR_DUAL_EXECUTION_MODE:parallel-full-page',
-      `OCR_PRIMARY_MS:${Math.round(primaryMs)}`,
-      `OCR_SECONDARY_MS:${Math.round(secondaryMs)}`,
-      `OCR_DUAL_WALL_MS:${Math.round(wallMs)}`
-    ];
-
-    // The quality gate still controls whether secondary evidence may affect the page.
-    // In parallel mode the secondary read has already completed, so a clean primary page
-    // pays no extra wall-clock serialization penalty.
-    if(!shouldRunSecondary(page)){
-      return{
-        ...page,
-        warnings:[...page.warnings,...timingWarnings,'RECOGNIZER_B_PARALLEL_UNUSED:QUALITY_GATE']
-      };
-    }
-    if(!result.tokens.length)return{
-      ...page,
-      warnings:[...page.warnings,...timingWarnings,...result.warnings.map(w=>`RECOGNIZER_B:${w}`)]
-    };
+    const result=await this.secondary.recognize(independentInput,signal);
+    if(!result.tokens.length)return{...page,warnings:[...page.warnings,...result.warnings.map(w=>`RECOGNIZER_B:${w}`)]};
     const evidence:OcrProviderVariantEvidence={
       source:`recognizer-b:${result.id}`,
       score:result.score,
@@ -157,7 +151,6 @@ export class DualRecognizerOcrProvider implements OcrProvider{
       variantEvidence:[...(page.variantEvidence??[]),evidence],
       warnings:[
         ...page.warnings,
-        ...timingWarnings,
         `RECOGNIZER_B_USED:${result.id}`,
         `RECOGNIZER_B_TOKENS:${result.tokens.length}`,
         `RECOGNIZER_B_SCORE:${result.score.toFixed(1)}`
@@ -198,17 +191,19 @@ async function fetchBytes(url:string,signal?:AbortSignal):Promise<Uint8Array>{
   if(!response.ok)throw new Error(`${response.status} ${response.statusText} per ${url}`);
   return new Uint8Array(await response.arrayBuffer());
 }
-async function recognizeCanvas(runtime:OcrsWasmInstance,canvas:HTMLCanvasElement,signal?:AbortSignal):Promise<OcrsWordJson[]>{
+async function recognizeCanvas(runtime:OcrsWasmInstance,canvas:HTMLCanvasElement,signal?:AbortSignal,singleLine=false):Promise<OcrsWordJson[]>{
   signal?.throwIfAborted();
   const context=canvas.getContext('2d',{willReadFrequently:true});
   if(!context)return[];
   const image=context.getImageData(0,0,canvas.width,canvas.height);
-  const raw=await runtime.recognize_rgba(new Uint8Array(image.data.buffer.slice(0)),canvas.width,canvas.height);
+  const read=singleLine?runtime.recognize_line_rgba!.bind(runtime):runtime.recognize_rgba.bind(runtime);
+  const raw=await read(new Uint8Array(image.data.buffer.slice(0)),canvas.width,canvas.height);
+  signal?.throwIfAborted();
   const parsed=JSON.parse(raw) as OcrsWordJson[];
   return Array.isArray(parsed)?parsed.filter(validWord):[];
 }
 function validWord(word:OcrsWordJson):boolean{
-  return !!word&&typeof word.text==='string'&&Array.isArray(word.rect)&&word.rect.length===4&&word.rect.every(Number.isFinite);
+  return !!word&&typeof word.text==='string'&&Array.isArray(word.rect)&&word.rect.length===4&&word.rect.every(Number.isFinite)&&word.rect[2]>word.rect[0]&&word.rect[3]>word.rect[1];
 }
 function wordsToTokens(words:OcrsWordJson[],pageNumber:number,offsetX:number,offsetY:number,prefix:string):OcrToken[]{
   const sorted=[...words].sort((a,b)=>a.rect[1]-b.rect[1]||a.rect[0]-b.rect[0]);
@@ -286,3 +281,4 @@ function cloneToken(token:OcrToken):OcrToken{
   return{...token,box:{...token.box},...(token.alternatives?{alternatives:[...token.alternatives]}:{})};
 }
 function message(error:unknown):string{return error instanceof Error?error.message:String(error);}
+
